@@ -1,0 +1,54 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- White glowing calendar/book symbol centered in the 108x108 viewport -->
+    <!-- The safe zone is a 66dp diameter circle in the center -->
+    
+    <group
+        android:scaleX="0.6"
+        android:scaleY="0.6"
+        android:translateX="24"
+        android:translateY="24">
+        
+        <!-- Notebook/Calendar Outline -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M20,10 h60 a10,10 0 0 1 10,10 v60 a10,10 0 0 1 -10,10 h-60 a10,10 0 0 1 -10,-10 v-60 a10,10 0 0 1 10,-10 z"/>
+            
+        <!-- Spiral binding elements -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M20,5 h6 v10 h-6 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M47,5 h6 v10 h-6 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M74,5 h6 v10 h-6 z" />
+            
+        <!-- Lines on the page -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"
+            android:pathData="M30,40 h40 M30,60 h40 M30,80 h20" />
+            
+        <!-- Checkmark to symbolize planning/completion -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#00E676"
+            android:strokeWidth="7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M60,75 l10,10 l20,-20" />
+    </group>
+</vector>
