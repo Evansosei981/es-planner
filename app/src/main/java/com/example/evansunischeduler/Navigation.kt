@@ -246,6 +246,7 @@ fun MainAppScreen(
     val courseStats by viewModel.courseStats.collectAsStateWithLifecycle()
     val allNotes by viewModel.allNotes.collectAsStateWithLifecycle()
     val profileImagePath by viewModel.profileImagePath.collectAsStateWithLifecycle()
+    val currentTime by viewModel.currentTimeFlow.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
 
 
@@ -415,7 +416,7 @@ fun MainAppScreen(
                     label = "navigation_animation"
                 ) { targetIndex ->
                     when (targetIndex) {
-                        0 -> HomeScreen(
+                        0 -> com.example.evansunischeduler.ui.home.HomeScreen(
                             userName = userName,
                             profileImagePath = profileImagePath,
                             todaySchedule = todaySchedule,
@@ -423,15 +424,17 @@ fun MainAppScreen(
                             totalStudyMinutes = totalStudyMinutes,
                             weeklyGoalHours = weeklyGoalHours,
                             completedSessionsCount = completedCount,
+                            currentTime = currentTime,
                             onProfileClick = { rootNavController.navigate(ProfileScreen) },
                             onShowTutorial = { showTutorial = true },
                             onNewSessionClick = { selectedIndex = 3 },
                             onAskEvansClick = { showEvansAi = true }
                         )
-                        1 -> ScheduleScreen(
+                        1 -> com.example.evansunischeduler.ui.schedule.ScheduleScreen(
                             courses = courses,
                             studySessions = sessions,
                             upcomingExams = upcomingExams,
+                            currentTime = currentTime,
                             onAddExam = { viewModel.addExam(it) },
                             onDeleteExam = { viewModel.deleteExam(it) },
                             onClassNoteClick = { activeClassNote = it },

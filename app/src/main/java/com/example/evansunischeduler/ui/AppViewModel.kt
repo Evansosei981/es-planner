@@ -30,12 +30,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val allNotes: StateFlow<List<LearningNote>> = repository.allNotes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val currentTimeFlow = flow {
+    val currentTimeFlow = flow {
         while (true) {
             emit(System.currentTimeMillis())
             kotlinx.coroutines.delay(60000) // Update every minute
         }
-    }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), System.currentTimeMillis())
 
     val upcomingExams: StateFlow<List<Exam>> = combine(repository.allExams, currentTimeFlow) { exams, time ->
         exams.filter { it.timestampMillis >= time - 86400000 }

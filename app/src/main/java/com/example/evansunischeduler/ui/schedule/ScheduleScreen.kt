@@ -46,6 +46,7 @@ fun ScheduleScreen(
     courses: List<Course>,
     studySessions: List<StudySession>,
     upcomingExams: List<Exam> = emptyList(),
+    currentTime: Long,
     onAddExam: ((Exam) -> Unit)? = null,
     onDeleteExam: ((Exam) -> Unit)? = null,
     onClassNoteClick: (Course) -> Unit,
@@ -98,6 +99,7 @@ fun ScheduleScreen(
         } else {
             ExamsContent(
                 exams = upcomingExams,
+                currentTime = currentTime,
                 onAddExam = onAddExam,
                 onDeleteExam = onDeleteExam
             )
@@ -259,6 +261,7 @@ fun WeeklyScheduleContent(
 @Composable
 fun ExamsContent(
     exams: List<Exam>,
+    currentTime: Long,
     onAddExam: ((Exam) -> Unit)?,
     onDeleteExam: ((Exam) -> Unit)?
 ) {
@@ -295,7 +298,7 @@ fun ExamsContent(
                 items(exams) { exam ->
                     val formatter = SimpleDateFormat("EEE, MMM d, yyyy • h:mm a", Locale.getDefault())
                     val dateString = formatter.format(exam.timestampMillis)
-                    val daysLeft = ((exam.timestampMillis - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
+                    val daysLeft = ((exam.timestampMillis - currentTime) / (1000 * 60 * 60 * 24)).toInt()
                     val daysStr = if (daysLeft == 0) "Today" else if (daysLeft == 1) "In 1 day" else "In $daysLeft days"
 
                     ScheduleCard(

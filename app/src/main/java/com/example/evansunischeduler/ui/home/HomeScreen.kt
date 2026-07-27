@@ -53,6 +53,7 @@ fun HomeScreen(
     totalStudyMinutes: Int,
     weeklyGoalHours: Float,
     completedSessionsCount: Int,
+    currentTime: Long,
     onProfileClick: () -> Unit,
     onShowTutorial: () -> Unit,
     onNewSessionClick: () -> Unit,
@@ -75,18 +76,72 @@ fun HomeScreen(
         }
     }
     
-    val dynamicGreeting = remember(todayName, upcomingExams) {
+    val dynamicGreeting = remember(todayName, upcomingExams, currentTime) {
         
         var greeting: String? = null
         val nextExam = upcomingExams.minByOrNull { it.timestampMillis }
         if (nextExam != null) {
-            val daysLeft = ((nextExam.timestampMillis - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
-            if (daysLeft == 0) {
-                greeting = "Good luck on your ${nextExam.examTitle} today! You got this! 🌟"
-            } else if (daysLeft == 1) {
-                greeting = "Only 1 day left until your ${nextExam.examTitle}! Time to focus! 🚀"
-            } else if (daysLeft <= 14) {
-                greeting = "Only $daysLeft days left until your ${nextExam.courseName} ${nextExam.examTitle}! 📚"
+            val daysLeft = ((nextExam.timestampMillis - currentTime) / (1000 * 60 * 60 * 24)).toInt()
+            val examsSameDayCount = upcomingExams.count { 
+                ((it.timestampMillis - currentTime) / (1000 * 60 * 60 * 24)).toInt() == daysLeft 
+            }
+            
+            if (examsSameDayCount > 1) {
+                if (daysLeft == 0) {
+                    val multiTodayMessages = listOf(
+                        "Good luck! You have $examsSameDayCount exams today! You got this! 🌟",
+                        "It's a big day! Crush your $examsSameDayCount exams today! 🚀",
+                        "Deep breaths. You are totally ready for your $examsSameDayCount exams today! 💪"
+                    )
+                    greeting = multiTodayMessages.random()
+                } else if (daysLeft == 1) {
+                    val multiTomorrowMessages = listOf(
+                        "Only 1 day left until your $examsSameDayCount exams! Time to focus! ⏳",
+                        "Tomorrow is a big day with $examsSameDayCount exams! Get some good rest tonight! 💤",
+                        "The countdown is on! 1 day until your $examsSameDayCount exams. Final review time! 📚"
+                    )
+                    greeting = multiTomorrowMessages.random()
+                } else if (daysLeft <= 14) {
+                    val multiThisWeekMessages = listOf(
+                        "Only $daysLeft days left until your $examsSameDayCount exams! 🎯",
+                        "Just $daysLeft days to master your material for $examsSameDayCount exams! Let's make every study session count. 📈",
+                        "You have $examsSameDayCount exams creeping up in $daysLeft days. You're doing great! ✨"
+                    )
+                    greeting = multiThisWeekMessages.random()
+                } else {
+                    greeting = "You have $examsSameDayCount exams coming up in $daysLeft days. Keep studying steadily! 🚀"
+                }
+            } else {
+                val todayMessages = listOf(
+                    "Good luck on your ${nextExam.examTitle} today! You got this! 🌟",
+                    "It's game day! Crush your ${nextExam.courseName} exam today! 🚀",
+                    "Deep breaths. You are totally ready for your ${nextExam.examTitle} today! 💪"
+                )
+                val tomorrowMessages = listOf(
+                    "Only 1 day left until your ${nextExam.examTitle}! Time to focus! ⏳",
+                    "Tomorrow is the big day for ${nextExam.courseName}! Get some good rest tonight! 💤",
+                    "The countdown is on! 1 day until ${nextExam.examTitle}. Final review time! 📚"
+                )
+                val thisWeekMessages = listOf(
+                    "Only $daysLeft days left until your ${nextExam.courseName} ${nextExam.examTitle}! 🎯",
+                    "Just $daysLeft days to master ${nextExam.courseName}! Let's make every study session count. 📈",
+                    "${nextExam.examTitle} is creeping up in $daysLeft days. You're doing great! ✨"
+                )
+                val farAwayMessages = listOf(
+                    "Plenty of time! Your ${nextExam.examTitle} is $daysLeft days away. Slow and steady wins the race! 🐢",
+                    "Look at you planning ahead! $daysLeft days until ${nextExam.courseName}. 🧠",
+                    "$daysLeft days until your ${nextExam.examTitle}. Let's get ahead of the curve! 🚀"
+                )
+
+                if (daysLeft == 0) {
+                    greeting = todayMessages.random()
+                } else if (daysLeft == 1) {
+                    greeting = tomorrowMessages.random()
+                } else if (daysLeft <= 14) {
+                    greeting = thisWeekMessages.random()
+                } else {
+                    greeting = farAwayMessages.random()
+                }
             }
         }
         
