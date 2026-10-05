@@ -1,0 +1,8 @@
+{
+  "name": "ES Planner",
+  "description": "Smart university schedule, study planner, exam tracker, and AI academic assistant with focus timer and learning journal.",
+  "permissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
