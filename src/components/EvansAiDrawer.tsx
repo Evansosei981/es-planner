@@ -65,7 +65,7 @@ export const EvansAiDrawer: React.FC<EvansAiDrawerProps> = ({ onClose }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeMessages.length, isGeneratingAi]);
 
-  // Dynamic Suggestion Chips based on real student data
+  // Dynamic Suggestion Chips based on real student data (only when data exists)
   const suggestionChips = useMemo(() => {
     const chips: string[] = [];
 
@@ -95,11 +95,7 @@ export const EvansAiDrawer: React.FC<EvansAiDrawerProps> = ({ onClose }) => {
       chips.push(`Break down core concepts from my ${currentClass.name} lecture`);
     }
 
-    // 4. Default fallback academic drill
-    if (chips.length < 4) {
-      chips.push("Ask me 3 practice questions to test my retention");
-    }
-
+    // Only return real data chips (no fake fallback)
     return chips.slice(0, 4);
   }, [upcomingExams, currentTime, practiceOverallStats.needsPracticeTopics, todaySchedule]);
 
@@ -302,24 +298,30 @@ export const EvansAiDrawer: React.FC<EvansAiDrawerProps> = ({ onClose }) => {
               </p>
             </div>
 
-            {/* 3-4 Suggestion Chips generated dynamically from student's data */}
-            <div className="w-full max-w-md pt-2 space-y-2">
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block text-left px-1">
-                Suggested for you
-              </span>
-              <div className="space-y-2">
-                {suggestionChips.map((chip, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSendPrompt(chip)}
-                    className="w-full text-left p-3.5 rounded-2xl bg-[#15151E] hover:bg-[#1C1C28] active:scale-[0.99] border border-white/5 hover:border-white/15 text-xs text-gray-200 transition-all flex items-center justify-between group shadow-sm"
-                  >
-                    <span className="pr-2 leading-snug">{chip}</span>
-                    <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-white shrink-0 transition-colors" />
-                  </button>
-                ))}
+            {/* Suggestion Chips generated dynamically from student's data (only when data exists) */}
+            {suggestionChips.length > 0 ? (
+              <div className="w-full max-w-md pt-2 space-y-2">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block text-left px-1">
+                  Suggested for you
+                </span>
+                <div className="space-y-2">
+                  {suggestionChips.map((chip, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSendPrompt(chip)}
+                      className="w-full text-left p-3.5 rounded-2xl bg-[#15151E] hover:bg-[#1C1C28] active:scale-[0.99] border border-white/5 hover:border-white/15 text-xs text-gray-200 transition-all flex items-center justify-between group shadow-sm"
+                    >
+                      <span className="pr-2 leading-snug">{chip}</span>
+                      <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-white shrink-0 transition-colors" />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="pt-2 text-xs text-gray-500 max-w-xs text-center">
+                Type any study question or math formula below to begin.
+              </div>
+            )}
           </div>
         ) : (
           /* CHAT MESSAGE BUBBLES */

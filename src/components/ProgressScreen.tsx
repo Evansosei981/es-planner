@@ -28,10 +28,11 @@ export const ProgressScreen: React.FC = () => {
   } = useApp();
 
   const totalHours = totalStudyMinutes / 60;
-  const goalHours = weeklyGoal.targetHoursPerWeek || 20;
-  const progressRatio = Math.min(1, totalHours / goalHours);
+  const goalHours = weeklyGoal.targetHoursPerWeek;
+  const hasStudyData = totalHours > 0 || goalHours > 0;
+  const progressRatio = goalHours > 0 ? Math.min(1, totalHours / goalHours) : (totalHours > 0 ? 1 : 0);
   const progressPercent = Math.round(progressRatio * 100);
-  const isGoalAchieved = progressRatio >= 1;
+  const isGoalAchieved = goalHours > 0 && progressRatio >= 1;
 
   // Trigger celebration confetti when weekly goal reached
   useEffect(() => {
@@ -69,65 +70,83 @@ export const ProgressScreen: React.FC = () => {
       </header>
 
       {/* ONE HEADLINE METRIC & WEEKLY PROGRESS RING */}
-      <section className="bg-[#15151E] border border-white/5 rounded-3xl p-6 shadow-xl flex flex-col items-center text-center relative overflow-hidden">
-        {/* Subtle glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-[#7C5CFC]/15 rounded-full blur-3xl pointer-events-none" />
+      {hasStudyData ? (
+        <section className="bg-[#15151E] border border-white/5 rounded-3xl p-6 shadow-xl flex flex-col items-center text-center relative overflow-hidden">
+          {/* Subtle glow */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-[#7C5CFC]/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative w-44 h-44 flex items-center justify-center my-2">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 200 200">
-            <circle
-              cx="100"
-              cy="100"
-              r="85"
-              fill="transparent"
-              stroke="rgba(255, 255, 255, 0.06)"
-              strokeWidth="18"
-            />
-            <circle
-              cx="100"
-              cy="100"
-              r="85"
-              fill="transparent"
-              stroke="url(#progressGradient)"
-              strokeWidth="18"
-              strokeDasharray={534}
-              strokeDashoffset={534 * (1 - progressRatio)}
-              strokeLinecap="round"
-              className="transition-all duration-1000 ease-out"
-            />
-            <defs>
-              <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#7C5CFC" />
-                <stop offset="100%" stopColor="#00D4A1" />
-              </linearGradient>
-            </defs>
-          </svg>
+          <div className="relative w-44 h-44 flex items-center justify-center my-2">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 200 200">
+              <circle
+                cx="100"
+                cy="100"
+                r="85"
+                fill="transparent"
+                stroke="rgba(255, 255, 255, 0.06)"
+                strokeWidth="18"
+              />
+              <circle
+                cx="100"
+                cy="100"
+                r="85"
+                fill="transparent"
+                stroke="url(#progressGradient)"
+                strokeWidth="18"
+                strokeDasharray={534}
+                strokeDashoffset={534 * (1 - progressRatio)}
+                strokeLinecap="round"
+                className="transition-all duration-1000 ease-out"
+              />
+              <defs>
+                <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#7C5CFC" />
+                  <stop offset="100%" stopColor="#00D4A1" />
+                </linearGradient>
+              </defs>
+            </svg>
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-3xl sm:text-4xl font-black text-white leading-none tabular-nums">
-              {totalHours.toFixed(1)}h
-            </span>
-            <span className="text-xs text-gray-400 mt-1 font-semibold">
-              of {goalHours.toFixed(0)}h goal
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-3 flex items-center gap-2">
-          {isGoalAchieved ? (
-            <div className="flex items-center gap-2 text-[#00D4A1] font-bold text-xs sm:text-sm bg-[#00D4A1]/15 px-4 py-1.5 rounded-full border border-[#00D4A1]/30">
-              <Trophy className="w-4 h-4" />
-              <span>Weekly Goal Achieved!</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span className="text-3xl sm:text-4xl font-black text-white leading-none tabular-nums">
+                {totalHours.toFixed(1)}h
+              </span>
+              <span className="text-xs text-gray-400 mt-1 font-semibold">
+                {goalHours > 0 ? `of ${goalHours.toFixed(0)}h goal` : 'studied this week'}
+              </span>
             </div>
-          ) : (
-            <span className="text-xs sm:text-sm font-bold text-[#7C5CFC] bg-[#7C5CFC]/15 px-4 py-1.5 rounded-full border border-[#7C5CFC]/30">
-              {progressPercent}% of weekly target
-            </span>
-          )}
-        </div>
-      </section>
+          </div>
 
-      {/* DISTINCT METRIC TILES (No duplicate of totalHours!) */}
+          <div className="mt-3 flex items-center gap-2">
+            {isGoalAchieved ? (
+              <div className="flex items-center gap-2 text-[#00D4A1] font-bold text-xs sm:text-sm bg-[#00D4A1]/15 px-4 py-1.5 rounded-full border border-[#00D4A1]/30">
+                <Trophy className="w-4 h-4" />
+                <span>Weekly Goal Achieved!</span>
+              </div>
+            ) : goalHours > 0 ? (
+              <span className="text-xs sm:text-sm font-bold text-[#7C5CFC] bg-[#7C5CFC]/15 px-4 py-1.5 rounded-full border border-[#7C5CFC]/30">
+                {progressPercent}% of weekly target
+              </span>
+            ) : (
+              <span className="text-xs text-gray-400 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
+                Set a weekly goal in your profile to track target %
+              </span>
+            )}
+          </div>
+        </section>
+      ) : (
+        <section className="bg-[#15151E] border border-white/5 rounded-3xl p-8 shadow-xl flex flex-col items-center text-center space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-[#1D1D29] text-[#7C5CFC] flex items-center justify-center">
+            <Target className="w-7 h-7 stroke-[1.75]" />
+          </div>
+          <div className="space-y-1 max-w-sm">
+            <h3 className="text-base font-bold text-white">No Study Hours Logged Yet</h3>
+            <p className="text-xs text-gray-400">
+              Start a focus timer session or set a weekly goal in your profile to see your weekly progress ring.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* DISTINCT METRIC TILES */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 flex flex-col items-center text-center shadow-md">
           <span className="text-2xl font-black text-[#00D4A1] tracking-tight tabular-nums">
@@ -138,7 +157,7 @@ export const ProgressScreen: React.FC = () => {
 
         <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 flex flex-col items-center text-center shadow-md">
           <span className="text-2xl font-black text-[#7C5CFC] tracking-tight tabular-nums">
-            {practiceOverallStats.accuracyPercentage}%
+            {practiceOverallStats.totalSolved > 0 ? `${practiceOverallStats.accuracyPercentage}%` : '—'}
           </span>
           <span className="text-[11px] font-semibold text-gray-400 mt-1">Practice Accuracy</span>
         </div>

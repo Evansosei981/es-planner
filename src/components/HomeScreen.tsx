@@ -12,7 +12,8 @@ import {
   CalendarClock,
   Zap,
   Sparkles,
-  Smartphone
+  Smartphone,
+  FolderOpen
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getCourseColor } from '../theme/colors';
@@ -54,6 +55,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     practiceStreak,
     todayPracticeResult,
     dailyQuestions,
+    questionBank,
     practiceSettings,
     courses,
     updatePracticeSettings,
@@ -163,8 +165,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   const studiedHours = totalStudyMinutes / 60;
-  const goalHours = weeklyGoal.targetHoursPerWeek || 20;
-  const progressRatio = Math.min(1, studiedHours / goalHours);
+  const goalHours = weeklyGoal.targetHoursPerWeek;
+  const progressRatio = goalHours > 0 ? Math.min(1, studiedHours / goalHours) : 0;
   const progressPercent = Math.round(progressRatio * 100);
 
   const nextExam = upcomingExams[0];
@@ -245,110 +247,134 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   </div>
                   {/* Clean unquoted natural copy */}
                   <p className="text-xs text-[#555A70] dark:text-gray-300 mt-0.5">
-                    {todayPracticeResult?.completed
+                    {questionBank.length === 0
+                      ? "Your Daily Practice isn't ready yet."
+                      : todayPracticeResult?.completed
                       ? "Today's challenge complete. Streak preserved!"
                       : `${dailyQuestions.length} questions waiting today`}
                   </p>
                 </div>
               </div>
 
-              {/* Clean unboxed streak: shown only once on Home */}
-              <div
-                className="flex items-center gap-1.5 text-xs font-bold text-[#A84B00] dark:text-[#FF7A00] shrink-0"
-                title={`${practiceStreak.currentStreak} day daily practice streak`}
-              >
-                <Flame className="w-4 h-4 fill-[#A84B00] dark:fill-[#FF7A00]" />
-                <span>{practiceStreak.currentStreak} Day Streak</span>
-              </div>
-            </div>
-
-            {/* Progress Bar & Status */}
-            <div className="my-4 space-y-1.5">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-[#555A70] dark:text-gray-400">
-                  {todayPracticeResult?.completed ? "Target Completed" : "Progress toward target"}
-                </span>
-                {/* Natural copy: unquoted */}
-                <span className="text-[#0B7A50] dark:text-[#00D4A1] font-bold">
-                  {todayPracticeResult?.completed
-                    ? `${practiceSettings.dailyTarget} of ${practiceSettings.dailyTarget} done`
-                    : `${todayPracticeResult?.score || 0} of ${practiceSettings.dailyTarget} done`}
-                </span>
-              </div>
-              <div className="w-full h-2.5 bg-[#E3E6F0] dark:bg-white/5 rounded-full overflow-hidden">
+              {/* Clean unboxed streak: shown only once on Home, hidden until first completed day */}
+              {practiceStreak.currentStreak > 0 && (
                 <div
-                  className="h-full bg-gradient-to-r from-[#5B3FE0] to-[#0E9F78] dark:from-[#7C5CFC] dark:to-[#00D4A1] transition-all duration-700 ease-out"
-                  style={{
-                    width: `${todayPracticeResult?.completed ? 100 : Math.min(100, Math.round(((todayPracticeResult?.score || 0) / practiceSettings.dailyTarget) * 100))}%`
-                  }}
-                />
-              </div>
+                  className="flex items-center gap-1.5 text-xs font-bold text-[#A84B00] dark:text-[#FF7A00] shrink-0"
+                  title={`${practiceStreak.currentStreak} day daily practice streak`}
+                >
+                  <Flame className="w-4 h-4 fill-[#A84B00] dark:fill-[#FF7A00]" />
+                  <span>{practiceStreak.currentStreak} Day Streak</span>
+                </div>
+              )}
             </div>
 
-            {/* Course Chips with Hidden Scrollbar & Right Edge Fade Hint */}
-            <div className="pt-1 pb-2">
-              <div className="relative">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 pr-8">
-                  <span className="text-[11px] font-bold text-[#555A70] dark:text-gray-400 whitespace-nowrap mr-0.5">
-                    Course:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => updatePracticeSettings({ preferredCourse: 'all' })}
-                    className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap active:scale-95 transition-all ${
-                      (practiceSettings.preferredCourse || 'all') === 'all'
-                        ? 'bg-[rgba(109,74,255,0.12)] text-[#5B3FE0] border border-[#6D4AFF]/30 dark:bg-[#7C5CFC] dark:text-white dark:border-transparent shadow-sm'
-                        : 'bg-[#EEF0F8] text-[#555A70] hover:bg-[#E2E5F2] dark:bg-white/5 dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/10'
-                    }`}
-                  >
-                    All Courses
-                  </button>
-                  {courses.map(c => {
-                    const isSelected = practiceSettings.preferredCourse === c.name;
-                    return (
+            {/* Empty state when questionBank is empty (Requirement 3) */}
+            {questionBank.length === 0 ? (
+              <div className="pt-3 pb-1 space-y-3">
+                <p className="text-xs text-[#555A70] dark:text-gray-300">
+                  Your Daily Practice isn't ready yet. Add questions to build your bank.
+                </p>
+                <button
+                  type="button"
+                  onClick={onOpenDailyPracticeHub}
+                  className="min-h-[44px] px-4 rounded-xl bg-[#6D4AFF] hover:bg-[#5B3FE0] dark:bg-[#7C5CFC] dark:hover:bg-[#6c4be8] text-white text-xs font-bold transition-all shadow-md shadow-[#7C5CFC]/25 flex items-center gap-2 active:scale-95 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Add Questions</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Progress Bar & Status */}
+                <div className="my-4 space-y-1.5">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-[#555A70] dark:text-gray-400">
+                      {todayPracticeResult?.completed ? "Target Completed" : "Progress toward target"}
+                    </span>
+                    {/* Natural copy: unquoted */}
+                    <span className="text-[#0B7A50] dark:text-[#00D4A1] font-bold">
+                      {todayPracticeResult?.completed
+                        ? `${practiceSettings.dailyTarget} of ${practiceSettings.dailyTarget} done`
+                        : `${todayPracticeResult?.score || 0} of ${practiceSettings.dailyTarget} done`}
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 bg-[#E3E6F0] dark:bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#5B3FE0] to-[#0E9F78] dark:from-[#7C5CFC] dark:to-[#00D4A1] transition-all duration-700 ease-out"
+                      style={{
+                        width: `${todayPracticeResult?.completed ? 100 : Math.min(100, Math.round(((todayPracticeResult?.score || 0) / practiceSettings.dailyTarget) * 100))}%`
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Course Chips with Hidden Scrollbar & Right Edge Fade Hint */}
+                <div className="pt-1 pb-2">
+                  <div className="relative">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 pr-8">
+                      <span className="text-[11px] font-bold text-[#555A70] dark:text-gray-400 whitespace-nowrap mr-0.5">
+                        Course:
+                      </span>
                       <button
-                        key={c.id}
                         type="button"
-                        onClick={() => updatePracticeSettings({ preferredCourse: c.name })}
+                        onClick={() => updatePracticeSettings({ preferredCourse: 'all' })}
                         className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap active:scale-95 transition-all ${
-                          isSelected
-                            ? 'bg-[rgba(109,74,255,0.12)] text-[#5B3FE0] border border-[#6D4AFF]/30 dark:bg-[#00D4A1] dark:text-black dark:border-transparent font-extrabold shadow-sm'
+                          (practiceSettings.preferredCourse || 'all') === 'all'
+                            ? 'bg-[rgba(109,74,255,0.12)] text-[#5B3FE0] border border-[#6D4AFF]/30 dark:bg-[#7C5CFC] dark:text-white dark:border-transparent shadow-sm'
                             : 'bg-[#EEF0F8] text-[#555A70] hover:bg-[#E2E5F2] dark:bg-white/5 dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/10'
                         }`}
                       >
-                        {c.name}
+                        All Courses
                       </button>
-                    );
-                  })}
+                      {courses.map(c => {
+                        const isSelected = practiceSettings.preferredCourse === c.name;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => updatePracticeSettings({ preferredCourse: c.name })}
+                            className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap active:scale-95 transition-all ${
+                              isSelected
+                                ? 'bg-[rgba(109,74,255,0.12)] text-[#5B3FE0] border border-[#6D4AFF]/30 dark:bg-[#00D4A1] dark:text-black dark:border-transparent font-extrabold shadow-sm'
+                                : 'bg-[#EEF0F8] text-[#555A70] hover:bg-[#E2E5F2] dark:bg-white/5 dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/10'
+                            }`}
+                          >
+                            {c.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Edge fade hint indicating horizontal scroll */}
+                    <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-[#141424] to-transparent z-10" />
+                  </div>
                 </div>
-                {/* Edge fade hint indicating horizontal scroll */}
-                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-[#141424] to-transparent z-10" />
-              </div>
-            </div>
 
-            {/* Action Buttons with 48px Touch Targets & Micro-Motion */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                onClick={onStartPractice}
-                className="flex-1 min-w-[200px] min-h-[48px] px-5 bg-gradient-to-r from-[#5B3FE0] to-[#0E9F78] dark:from-[#7C5CFC] dark:to-[#00D4A1] hover:opacity-95 active:scale-[0.98] text-white font-extrabold rounded-2xl shadow-md dark:shadow-lg dark:shadow-[#7C5CFC]/25 transition-all flex items-center justify-center gap-2 text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              >
-                <span>
-                  {todayPracticeResult?.completed
-                    ? "Practice Again / Review Questions"
-                    : practiceSettings.preferredCourse && practiceSettings.preferredCourse !== 'all'
-                    ? `Start ${practiceSettings.preferredCourse} Practice`
-                    : "Start Today's Practice"}
-                </span>
-                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-              </button>
+                {/* Action Buttons with 48px Touch Targets & Micro-Motion */}
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={onStartPractice}
+                    className="min-h-[48px] px-5 py-3 rounded-2xl bg-gradient-to-r from-[#5B3FE0] to-[#0E9F78] hover:opacity-95 active:scale-[0.98] text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#5B3FE0]/25 transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>
+                      {todayPracticeResult?.completed
+                        ? "Practice More Questions"
+                        : "Start Practice"}
+                    </span>
+                  </button>
 
-              <button
-                onClick={onOpenDailyPracticeHub}
-                className="min-h-[48px] px-4 bg-[#EEF0F8] hover:bg-[#E2E5F2] text-[#555A70] hover:text-[#14161F] dark:bg-white/5 dark:hover:bg-white/10 dark:text-gray-300 dark:hover:text-white border border-[#D9DCE8] dark:border-white/10 rounded-2xl font-bold text-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C5CFC]"
-              >
-                <span>Question Bank</span>
-              </button>
-            </div>
+                  <button
+                    type="button"
+                    onClick={onOpenDailyPracticeHub}
+                    className="min-h-[48px] px-4 py-3 rounded-2xl bg-[#EEF0F8] hover:bg-[#E2E5F2] dark:bg-white/5 dark:hover:bg-white/10 active:scale-[0.98] text-xs font-bold text-[#14161F] dark:text-white transition-all flex items-center justify-center gap-1.5 border border-[#D9DCE8] dark:border-white/10 cursor-pointer shadow-sm"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-[#5B3FE0] dark:text-gray-300" />
+                    <span>Daily Practice Hub</span>
+                  </button>
+                </div>
+              </>
+            )}
           </section>
 
           {/* FEATURE 2 ENTRY: Plan My Day Card */}
@@ -433,7 +459,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
 
             {/* Compact Empty State (~85px) so Weekly Goal and Exams are visible without scrolling */}
-            {todaySchedule.length === 0 ? (
+            {courses.length === 0 ? (
+              <div className="py-4 px-4 rounded-2xl bg-[#171722] border border-white/5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#7C5CFC]/15 text-[#7C5CFC] flex items-center justify-center shrink-0">
+                    <GraduationCap className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">
+                      Welcome. Add your first class to get started.
+                    </p>
+                    <p className="text-[11px] text-gray-400 truncate">
+                      Build your schedule to stay organized
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onSeeAllSchedule}
+                  className="min-h-[40px] px-3.5 rounded-xl bg-[#6D4AFF] hover:bg-[#5B3FE0] dark:bg-[#7C5CFC] dark:hover:bg-[#6c4be8] active:scale-95 text-xs font-bold text-white transition-all shrink-0 flex items-center gap-1.5 shadow-md shadow-[#7C5CFC]/20 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Class</span>
+                </button>
+              </div>
+            ) : todaySchedule.length === 0 ? (
               <div className="py-3 px-4 rounded-2xl bg-[#171722] border border-white/5 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-xl bg-[#00D4A1]/15 text-[#00D4A1] flex items-center justify-center shrink-0">
@@ -680,26 +730,44 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <section className="p-5 rounded-3xl bg-[#14141D] border border-white/5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white tracking-tight">Weekly Goal</h3>
-              <span className="text-xs font-bold text-[#00D4A1]">{progressPercent}%</span>
+              {goalHours > 0 && (
+                <span className="text-xs font-bold text-[#00D4A1]">{progressPercent}%</span>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#7C5CFC] to-[#00D4A1] rounded-full transition-all duration-700 ease-out"
-                  style={{ width: `${progressPercent}%` }}
-                />
+            {goalHours === 0 && studiedHours === 0 ? (
+              <div className="py-2 space-y-2.5">
+                <p className="text-xs text-gray-400">
+                  Set a weekly target to track study sessions and exam prep hours.
+                </p>
+                <button
+                  type="button"
+                  onClick={onProfileClick}
+                  className="min-h-[36px] px-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-[#7C5CFC] transition-colors border border-white/5 flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Set Weekly Goal</span>
+                </button>
               </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#7C5CFC] to-[#00D4A1] rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
 
-              <div className="flex justify-between items-center text-xs text-gray-400 pt-0.5">
-                <span>
-                  <strong className="text-white">{studiedHours.toFixed(1)}</strong> of {goalHours.toFixed(0)} hrs logged
-                </span>
-                <span>
-                  <strong className="text-white">{completedSessionsCount}</strong> sessions
-                </span>
+                <div className="flex justify-between items-center text-xs text-gray-400 pt-0.5">
+                  <span>
+                    <strong className="text-white">{studiedHours.toFixed(1)}</strong> of {goalHours.toFixed(0)} hrs logged
+                  </span>
+                  <span>
+                    <strong className="text-white">{completedSessionsCount}</strong> sessions
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </section>
 
           {/* LIGHTER ELEMENT 2: Quick Actions (Plain rows / tactile buttons, no nested cards) */}

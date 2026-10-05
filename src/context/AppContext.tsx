@@ -34,7 +34,21 @@ import { QuestionSelector } from '../practice/QuestionSelector';
 import { DayKey } from '../practice/DayKey';
 import { DuplicateDetector } from '../practice/DuplicateDetector';
 import { LocalQuestionParser } from '../practice/LocalQuestionParser';
-import { DEFAULT_QUESTION_BANK } from '../practice/PracticeConstants';
+import { DEFAULT_QUESTION_BANK, STARTER_PACK_QUESTIONS } from '../practice/PracticeConstants';
+import {
+  sanitizeTitle,
+  normalizeCompareText,
+  detectDuplicateClass,
+  detectDuplicateExam,
+  detectDuplicateQuestion,
+  validateClassTime,
+  validateExamDate,
+  scanDataIssues
+} from '../utils/dataSanitizer';
+import { ensureCleanDataVersion, CURRENT_DATA_VERSION } from '../utils/versionMigration';
+
+// Run version migration before app state initializes
+ensureCleanDataVersion();
 
 interface AppContextType {
   courses: Course[];
@@ -54,7 +68,7 @@ interface AppContextType {
   
   // Actions
   addCourse: (course: Omit<Course, 'id'>) => Course;
-  deleteCourse: (id: number) => void;
+  deleteCourse: (id: number, orphanAction?: 'delete' | 'unassign') => void;
   addStudySession: (session: Omit<StudySession, 'id' | 'completed' | 'dateMillis'>) => StudySession;
   toggleSessionComplete: (id: number) => void;
   deleteStudySession: (id: number) => void;
@@ -67,6 +81,13 @@ interface AppContextType {
   updateWeeklyGoal: (hours: number) => void;
   completeOnboarding: (name: string, major: string, notificationMins: number) => void;
   setActivated: (activated: boolean) => void;
+
+  // Data & Privacy / Clean Management
+  resetAllData: () => void;
+  clearPracticeDataOnly: () => void;
+  clearJournalOnly: () => void;
+  exportAllData: () => string;
+  fixDataAuditIssues: () => { fixedDuplicates: number; fixedOrphans: number };
 
   // Day Planner & Exam Revision Planner
   dayTasks: DayTask[];
@@ -137,196 +158,32 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
-// Initial seed data if first time
-const SEED_COURSES: Course[] = [
-  {
-    id: 1,
-    name: "Data Structures & Algorithms",
-    lecturer: "Dr. Evans Asante",
-    room: "CS Lab 3",
-    colorIndex: 0,
-    dayOfWeek: 1, // Monday
-    startHour: 9,
-    startMinute: 0,
-    endHour: 11,
-    endMinute: 30
-  },
-  {
-    id: 2,
-    name: "Linear Algebra & Calculus",
-    lecturer: "Prof. Mensah",
-    room: "Math Hall B",
-    colorIndex: 1,
-    dayOfWeek: 2, // Tuesday
-    startHour: 10,
-    startMinute: 0,
-    endHour: 12,
-    endMinute: 0
-  },
-  {
-    id: 3,
-    name: "Database Systems",
-    lecturer: "Dr. Osei",
-    room: "Lecture Room 4",
-    colorIndex: 4,
-    dayOfWeek: 3, // Wednesday
-    startHour: 14,
-    startMinute: 0,
-    endHour: 16,
-    endMinute: 0
-  },
-  {
-    id: 4,
-    name: "Computer Architecture",
-    lecturer: "Ing. Boateng",
-    room: "Tech Hall 1",
-    colorIndex: 5,
-    dayOfWeek: 4, // Thursday
-    startHour: 11,
-    startMinute: 0,
-    endHour: 13,
-    endMinute: 0
-  },
-  {
-    id: 5,
-    name: "Operating Systems",
-    lecturer: "Dr. Evans Asante",
-    room: "CS Lab 1",
-    colorIndex: 8,
-    dayOfWeek: 5, // Friday
-    startHour: 8,
-    startMinute: 30,
-    endHour: 10,
-    endMinute: 30
-  }
-];
-
-const SEED_SESSIONS: StudySession[] = [
-  {
-    id: 101,
-    courseId: 1,
-    courseName: "Data Structures & Algorithms",
-    colorIndex: 0,
-    dayOfWeek: 1,
-    startHour: 16,
-    startMinute: 0,
-    durationMinutes: 90,
-    completed: true,
-    dateMillis: Date.now() - 86400000
-  },
-  {
-    id: 102,
-    courseId: 2,
-    courseName: "Linear Algebra & Calculus",
-    colorIndex: 1,
-    dayOfWeek: 2,
-    startHour: 15,
-    startMinute: 0,
-    durationMinutes: 60,
-    completed: true,
-    dateMillis: Date.now() - 43200000
-  },
-  {
-    id: 103,
-    courseId: 3,
-    courseName: "Database Systems",
-    colorIndex: 4,
-    dayOfWeek: 3,
-    startHour: 18,
-    startMinute: 0,
-    durationMinutes: 90,
-    completed: false,
-    dateMillis: Date.now()
-  },
-  {
-    id: 104,
-    courseId: 1,
-    courseName: "Data Structures & Algorithms",
-    colorIndex: 0,
-    dayOfWeek: 4,
-    startHour: 17,
-    startMinute: 0,
-    durationMinutes: 75,
-    completed: false,
-    dateMillis: Date.now() + 86400000
-  },
-  {
-    id: 105,
-    courseId: 5,
-    courseName: "Operating Systems",
-    colorIndex: 8,
-    dayOfWeek: 5,
-    startHour: 14,
-    startMinute: 0,
-    durationMinutes: 60,
-    completed: false,
-    dateMillis: Date.now() + 172800000
-  }
-];
-
-const SEED_EXAMS: Exam[] = [
-  {
-    id: 201,
-    courseName: "Data Structures & Algorithms",
-    examTitle: "Mid-Semester Examination",
-    timestampMillis: Date.now() + 86400000 * 4 + 3600000 * 3, // in 4 days
-    colorIndex: 0
-  },
-  {
-    id: 202,
-    courseName: "Linear Algebra & Calculus",
-    examTitle: "Quiz 2 - Eigenvalues & Vectors",
-    timestampMillis: Date.now() + 86400000 * 8, // in 8 days
-    colorIndex: 1
-  },
-  {
-    id: 203,
-    courseName: "Database Systems",
-    examTitle: "SQL & Normalization Practical",
-    timestampMillis: Date.now() + 86400000 * 14, // in 14 days
-    colorIndex: 4
-  }
-];
-
-const SEED_NOTES: LearningNote[] = [
-  {
-    id: 301,
-    relatedId: 1,
-    type: "COURSE",
-    title: "Data Structures & Algorithms",
-    content: "Covered AVL tree balance factors and single/double rotations. Remember: left-right rotation requires rotating child left then node right.",
-    dateMillis: Date.now() - 86400000 * 2
-  },
-  {
-    id: 302,
-    relatedId: 101,
-    type: "STUDY_SESSION",
-    title: "Data Structures & Algorithms",
-    content: "Solved 4 LeetCode tree problems. Red-Black tree insertion cases revisited. Ready for midterm!",
-    dateMillis: Date.now() - 86400000
-  }
-];
+// Clean State: All collections start completely empty with zero sample data
+const EMPTY_COURSES: Course[] = [];
+const EMPTY_SESSIONS: StudySession[] = [];
+const EMPTY_EXAMS: Exam[] = [];
+const EMPTY_NOTES: LearningNote[] = [];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load or initialize state from localStorage
   const [courses, setCourses] = useState<Course[]>(() => {
     const saved = localStorage.getItem("es_courses");
-    return saved ? JSON.parse(saved) : SEED_COURSES;
+    return saved ? JSON.parse(saved) : EMPTY_COURSES;
   });
 
   const [studySessions, setStudySessions] = useState<StudySession[]>(() => {
     const saved = localStorage.getItem("es_study_sessions");
-    return saved ? JSON.parse(saved) : SEED_SESSIONS;
+    return saved ? JSON.parse(saved) : EMPTY_SESSIONS;
   });
 
   const [exams, setExams] = useState<Exam[]>(() => {
     const saved = localStorage.getItem("es_exams");
-    return saved ? JSON.parse(saved) : SEED_EXAMS;
+    return saved ? JSON.parse(saved) : EMPTY_EXAMS;
   });
 
   const [learningNotes, setLearningNotes] = useState<LearningNote[]>(() => {
     const saved = localStorage.getItem("es_notes");
-    return saved ? JSON.parse(saved) : SEED_NOTES;
+    return saved ? JSON.parse(saved) : EMPTY_NOTES;
   });
 
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
@@ -347,7 +204,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [weeklyGoal, setWeeklyGoal] = useState<WeeklyGoal>(() => {
     const saved = localStorage.getItem("es_weekly_goal");
-    return saved ? JSON.parse(saved) : { id: 1, targetHoursPerWeek: 20 };
+    return saved ? JSON.parse(saved) : { id: 1, targetHoursPerWeek: 0 };
   });
 
   // Practice & Quiz State
@@ -405,31 +262,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [aiChatSessions, setAiChatSessions] = useState<AiChatSession[]>(() => {
     const saved = localStorage.getItem("es_ai_sessions");
     if (saved) return JSON.parse(saved);
-    const initialSession: AiChatSession = { id: 1, title: "New Chat", timestamp: Date.now() };
-    return [initialSession];
+    return [];
   });
 
   const [currentAiSessionId, setCurrentAiSessionId] = useState<number | null>(() => {
     const saved = localStorage.getItem("es_ai_sessions");
     if (saved) {
-      const list = JSON.parse(saved);
-      return list.length > 0 ? list[0].id : null;
+      try {
+        const list = JSON.parse(saved);
+        return list.length > 0 ? list[0].id : null;
+      } catch {
+        return null;
+      }
     }
-    return 1;
+    return null;
   });
 
   const [aiChatMessages, setAiChatMessages] = useState<AiChatMessage[]>(() => {
     const saved = localStorage.getItem("es_ai_messages");
     if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 1,
-        sessionId: 1,
-        text: "Hello! I am Evans, your personal academic assistant. How can I help you excel in your studies today?",
-        isUser: false,
-        timestamp: Date.now()
-      }
-    ];
+    return [];
   });
 
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
@@ -438,45 +290,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [dayTasks, setDayTasks] = useState<DayTask[]>(() => {
     const saved = localStorage.getItem("es_day_tasks");
     if (saved) return JSON.parse(saved);
-    const today = DayKey.getTodayKey();
-    return [
-      {
-        id: "task-1",
-        title: "Review Chapter 4 Graph Algorithms",
-        estimatedMinutes: 45,
-        priority: "high" as const,
-        courseName: "Data Structures & Algorithms",
-        isTopPriority: true,
-        completed: false,
-        rolloverCount: 0,
-        dateKey: today,
-        createdAt: Date.now() - 3600000 * 2
-      },
-      {
-        id: "task-2",
-        title: "Solve Linear Algebra Problem Set 3",
-        estimatedMinutes: 50,
-        priority: "medium" as const,
-        courseName: "Linear Algebra & Calculus",
-        isTopPriority: true,
-        completed: false,
-        rolloverCount: 0,
-        dateKey: today,
-        createdAt: Date.now() - 3600000
-      },
-      {
-        id: "task-3",
-        title: "Prepare Database Normalization summary",
-        estimatedMinutes: 30,
-        priority: "low" as const,
-        courseName: "Database Systems",
-        isTopPriority: false,
-        completed: true,
-        rolloverCount: 0,
-        dateKey: today,
-        createdAt: Date.now() - 3600000 * 3
-      }
-    ];
+    return [];
   });
 
   const [dayPlannerPrefs, setDayPlannerPrefs] = useState<DayPlannerPrefs>(() => {
@@ -599,19 +413,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Actions
   const addCourse = (course: Omit<Course, 'id'>): Course => {
-    const newCourse: Course = { ...course, id: Date.now() };
+    const sanitizedName = sanitizeTitle(course.name);
+    const sanitizedLecturer = course.lecturer ? sanitizeTitle(course.lecturer) : '';
+    const sanitizedRoom = course.room ? course.room.trim().replace(/\s+/g, ' ') : '';
+    const newCourse: Course = {
+      ...course,
+      name: sanitizedName,
+      lecturer: sanitizedLecturer,
+      room: sanitizedRoom,
+      id: Date.now()
+    };
     setCourses(prev => [...prev, newCourse]);
     return newCourse;
   };
 
-  const deleteCourse = (id: number) => {
+  const deleteCourse = (id: number, orphanAction: 'delete' | 'unassign' = 'unassign') => {
+    const target = courses.find(c => c.id === id);
+    const courseName = target?.name;
+
     setCourses(prev => prev.filter(c => c.id !== id));
-    setStudySessions(prev => prev.filter(s => s.courseId !== id));
+
+    if (orphanAction === 'delete') {
+      setStudySessions(prev => prev.filter(s => s.courseId !== id && s.courseName !== courseName));
+      setExams(prev => prev.filter(e => e.courseName !== courseName));
+      setLearningNotes(prev => prev.filter(n => !(n.type === 'COURSE' && n.relatedId === id)));
+      setQuestionBank(prev => {
+        const updated = prev.filter(q => q.courseName !== courseName);
+        PracticeRepository.saveQuestions(updated);
+        return updated;
+      });
+    } else {
+      // Reassign to "General Study" so no references are broken
+      setStudySessions(prev => prev.map(s => {
+        if (s.courseId === id || s.courseName === courseName) {
+          return { ...s, courseId: 0, courseName: "General Study" };
+        }
+        return s;
+      }));
+      setExams(prev => prev.map(e => {
+        if (e.courseName === courseName) {
+          return { ...e, courseName: "General" };
+        }
+        return e;
+      }));
+      setQuestionBank(prev => {
+        const updated = prev.map(q => {
+          if (q.courseName === courseName) {
+            return { ...q, courseName: "General" };
+          }
+          return q;
+        });
+        PracticeRepository.saveQuestions(updated);
+        return updated;
+      });
+    }
   };
 
   const addStudySession = (session: Omit<StudySession, 'id' | 'completed' | 'dateMillis'>): StudySession => {
     const newSession: StudySession = {
       ...session,
+      courseName: sanitizeTitle(session.courseName || "General Study"),
       id: Date.now(),
       completed: false,
       dateMillis: Date.now()
@@ -631,7 +492,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addExam = (exam: Omit<Exam, 'id'>): Exam => {
-    const newExam: Exam = { ...exam, id: Date.now() };
+    const sanitizedCourse = sanitizeTitle(exam.courseName);
+    const sanitizedTitle = sanitizeTitle(exam.examTitle);
+    const newExam: Exam = {
+      ...exam,
+      courseName: sanitizedCourse,
+      examTitle: sanitizedTitle,
+      id: Date.now()
+    };
     setExams(prev => [...prev, newExam]);
     return newExam;
   };
@@ -820,6 +688,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addLearningNote = (note: Omit<LearningNote, 'id' | 'dateMillis'>): LearningNote => {
     const newNote: LearningNote = {
       ...note,
+      title: sanitizeTitle(note.title),
+      content: note.content.trim(),
       id: Date.now(),
       dateMillis: Date.now()
     };
@@ -1020,7 +890,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addCustomQuestion = (q: Omit<PracticeQuestion, 'id'>): PracticeQuestion => {
     const newQ: PracticeQuestion = {
       ...q,
-      id: `custom-${Date.now()}`
+      id: `custom-${Date.now()}`,
+      courseName: sanitizeTitle(q.courseName || 'General'),
+      category: sanitizeTitle(q.category || 'General'),
+      question: q.question.trim().replace(/\s+/g, ' ')
     };
     setQuestionBank(prev => {
       const updated = [newQ, ...prev];
@@ -1056,12 +929,191 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loadStarterQuestionPack = () => {
     const current = questionBank;
-    const missing = DEFAULT_QUESTION_BANK.filter(
+    const missing = STARTER_PACK_QUESTIONS.filter(
       defQ => !current.some(q => q.id === defQ.id)
     );
     const updated = [...missing, ...current];
     PracticeRepository.saveQuestions(updated);
     setQuestionBank(updated);
+  };
+
+  // Data & Privacy Management
+  const resetAllData = () => {
+    const keysToRemove = [
+      "es_courses",
+      "es_study_sessions",
+      "es_exams",
+      "es_notes",
+      "es_learning_notes",
+      "es_user_profile",
+      "es_weekly_goal",
+      "es_day_tasks",
+      "es_day_planner_prefs",
+      "es_exam_revision_plans",
+      "es_practice_questions",
+      "es_practice_resources",
+      "es_practice_settings",
+      "es_practice_streak",
+      "es_practice_results",
+      "es_practice_attempts_history",
+      "es_practice_sync_queue",
+      "es_ai_sessions",
+      "es_ai_messages",
+      "es_active_tab",
+      "es_has_seen_tutorial"
+    ];
+    keysToRemove.forEach(k => {
+      try {
+        localStorage.removeItem(k);
+      } catch {
+        // Ignore
+      }
+    });
+
+    setCourses([]);
+    setStudySessions([]);
+    setExams([]);
+    setLearningNotes([]);
+    setQuestionBank([]);
+    setResources([]);
+    setPracticeResults([]);
+    setDayTasks([]);
+    setRevisionPlans({});
+    setAiChatSessions([]);
+    setAiChatMessages([]);
+    setCurrentAiSessionId(null);
+    setPracticeStreak({ currentStreak: 0, longestStreak: 0, lastCompletedDay: null });
+    setPracticeSettings({
+      dailyTarget: 3,
+      reminderEnabled: true,
+      reminderTime: "20:00",
+      allowAiGeneratedQuestions: false,
+      preferredCourse: 'all'
+    });
+    setWeeklyGoal({ id: 1, targetHoursPerWeek: 0 });
+    setUserProfile({
+      id: 1,
+      name: "",
+      major: "",
+      notificationMinutes: 10,
+      themePreference: "SYSTEM",
+      hasCompletedOnboarding: false,
+      voiceReminderType: "STANDARD",
+      customVoiceFilePath: null,
+      profileImagePath: null
+    });
+  };
+
+  const clearPracticeDataOnly = () => {
+    const practiceKeys = [
+      "es_practice_questions",
+      "es_practice_resources",
+      "es_practice_streak",
+      "es_practice_results",
+      "es_practice_attempts_history",
+      "es_practice_sync_queue"
+    ];
+    practiceKeys.forEach(k => {
+      try {
+        localStorage.removeItem(k);
+      } catch {
+        // Ignore
+      }
+    });
+    setQuestionBank([]);
+    setResources([]);
+    setPracticeResults([]);
+    setPracticeStreak({ currentStreak: 0, longestStreak: 0, lastCompletedDay: null });
+  };
+
+  const clearJournalOnly = () => {
+    try {
+      localStorage.removeItem("es_notes");
+    } catch {
+      // Ignore
+    }
+    setLearningNotes([]);
+  };
+
+  const exportAllData = (): string => {
+    const backup = {
+      exportDate: new Date().toISOString(),
+      version: CURRENT_DATA_VERSION,
+      courses,
+      studySessions,
+      exams,
+      learningNotes,
+      userProfile,
+      weeklyGoal,
+      dayTasks,
+      dayPlannerPrefs,
+      revisionPlans,
+      questionBank,
+      resources,
+      practiceSettings,
+      practiceStreak,
+      practiceResults
+    };
+    return JSON.stringify(backup, null, 2);
+  };
+
+  const fixDataAuditIssues = (): { fixedDuplicates: number; fixedOrphans: number } => {
+    const seenClasses = new Set<string>();
+    const cleanCourses: Course[] = [];
+    let fixedDuplicates = 0;
+    courses.forEach(c => {
+      const key = `${normalizeCompareText(c.name)}_${c.dayOfWeek}_${c.startHour}_${c.startMinute}`;
+      if (!seenClasses.has(key)) {
+        seenClasses.add(key);
+        cleanCourses.push(c);
+      } else {
+        fixedDuplicates++;
+      }
+    });
+
+    const seenExams = new Set<string>();
+    const cleanExams: Exam[] = [];
+    exams.forEach(e => {
+      const key = `${normalizeCompareText(e.courseName)}_${normalizeCompareText(e.examTitle)}_${new Date(e.timestampMillis).toDateString()}`;
+      if (!seenExams.has(key)) {
+        seenExams.add(key);
+        cleanExams.push(e);
+      } else {
+        fixedDuplicates++;
+      }
+    });
+
+    const seenQuestions = new Set<string>();
+    const cleanQuestions: PracticeQuestion[] = [];
+    questionBank.forEach(q => {
+      const key = normalizeCompareText(q.question.replace(/[^a-zA-Z0-9\s]/g, ''));
+      if (!seenQuestions.has(key)) {
+        seenQuestions.add(key);
+        cleanQuestions.push(q);
+      } else {
+        fixedDuplicates++;
+      }
+    });
+
+    const validCourseNames = new Set(cleanCourses.map(c => normalizeCompareText(c.name)));
+    const validCourseIds = new Set(cleanCourses.map(c => c.id));
+    let fixedOrphans = 0;
+
+    const cleanSessions = studySessions.map(s => {
+      if (s.courseId !== 0 && !validCourseIds.has(s.courseId) && !validCourseNames.has(normalizeCompareText(s.courseName))) {
+        fixedOrphans++;
+        return { ...s, courseId: 0, courseName: "General Study" };
+      }
+      return s;
+    });
+
+    setCourses(cleanCourses);
+    setExams(cleanExams);
+    setQuestionBank(cleanQuestions);
+    PracticeRepository.saveQuestions(cleanQuestions);
+    setStudySessions(cleanSessions);
+
+    return { fixedDuplicates, fixedOrphans };
   };
 
   const processUploadedResource = async (resourceData: {
@@ -1387,7 +1439,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleBookmarkQuestion,
         deleteResource,
         loadStarterQuestionPack,
-        processUploadedResource
+        processUploadedResource,
+
+        // Data & Privacy Management
+        resetAllData,
+        clearPracticeDataOnly,
+        clearJournalOnly,
+        exportAllData,
+        fixDataAuditIssues
       }}
     >
       {children}

@@ -12,6 +12,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { Course } from '../types';
 import { getCourseColor, COURSE_COLORS } from '../theme/colors';
+import { sanitizeTitle, detectDuplicateClass, validateClassTime } from '../utils/dataSanitizer';
 
 interface ClassesScreenProps {
   onNavigateBack: () => void;
@@ -29,6 +30,10 @@ const COLOR_OPTIONS = [
 export const ClassesScreen: React.FC<ClassesScreenProps> = ({ onNavigateBack }) => {
   const { courses, addCourse, deleteCourse } = useApp();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [classWarning, setClassWarning] = useState<string | null>(null);
+
+  // Orphan cleanup deletion modal state
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
 
   // New Course fields
   const [name, setName] = useState('');
@@ -64,12 +69,27 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({ onNavigateBack }) 
     e.preventDefault();
     if (!name.trim() || isTimeInvalid || selectedDays.length === 0) return;
 
+    const sanitizedName = sanitizeTitle(name);
+    const sanitizedLecturer = lecturer ? sanitizeTitle(lecturer) : '';
+    const sanitizedRoom = room.trim();
+
+    // Check for duplicate classes on any of the selected days
+    if (!classWarning) {
+      for (const day of selectedDays) {
+        const dup = detectDuplicateClass(courses, sanitizedName, day, isNaN(sH) ? 9 : sH, isNaN(sM) ? 0 : sM);
+        if (dup) {
+          setClassWarning(`Duplicate warning: A class for "${sanitizedName}" is already scheduled on ${dayNames[day - 1]} at ${startTime}. Click "Save Class" again to confirm.`);
+          return;
+        }
+      }
+    }
+
     // Create a course record for each selected day
     selectedDays.forEach(day => {
       addCourse({
-        name: name.trim(),
-        lecturer: lecturer.trim(),
-        room: room.trim(),
+        name: sanitizedName,
+        lecturer: sanitizedLecturer,
+        room: sanitizedRoom,
         dayOfWeek: day,
         startHour: isNaN(sH) ? 9 : sH,
         startMinute: isNaN(sM) ? 0 : sM,
@@ -83,6 +103,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({ onNavigateBack }) 
     setLecturer('');
     setRoom('');
     setSelectedDays([1]);
+    setClassWarning(null);
     setShowAddModal(false);
   };
 
@@ -122,13 +143,16 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({ onNavigateBack }) 
               <GraduationCap className="w-7 h-7" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-base font-bold text-white">No classes scheduled</h3>
+              <h3 className="text-base font-bold text-white">No classes yet.</h3>
               <p className="text-xs text-gray-400 max-w-xs">
                 Add lectures and seminar schedules to build your weekly timetable.
               </p>
             </div>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                setClassWarning(null);
+                setShowAddModal(true);
+              }}
               className="min-h-[44px] px-4 py-2 bg-[#7C5CFC] hover:bg-[#6c4be8] text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-[#7C5CFC]/20 active:scale-95 transition-all"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -180,7 +204,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({ onNavigateBack }) 
                           </div>
 
                           <button
-                            onClick={() => deleteCourse(course.id)}
+                            onClick={() => setCourseToDelete(course)}
                             className="p-2 text-gray-500 hover:text-[#EF4444] rounded-xl hover:bg-white/5 transition-colors shrink-0"
                             title="Delete class"
                           >
@@ -357,11 +381,20 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({ onNavigateBack }) 
                 </div>
               </div>
 
+              {classWarning && (
+                <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs text-amber-300">
+                  {classWarning}
+                </div>
+              )}
+
               {/* Buttons */}
               <div className="flex gap-3 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setClassWarning(null);
+                    setShowAddModal(false);
+                  }}
                   className="flex-1 min-h-[44px] text-xs font-semibold text-gray-400 hover:text-white bg-white/5 rounded-xl transition-colors"
                 >
                   Cancel
@@ -371,10 +404,60 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({ onNavigateBack }) 
                   disabled={isTimeInvalid || selectedDays.length === 0}
                   className="flex-1 min-h-[44px] text-xs font-bold text-white bg-[#7C5CFC] hover:bg-[#6c4be8] disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors shadow-lg shadow-[#7C5CFC]/25"
                 >
-                  Save {selectedDays.length > 1 ? `Classes (${selectedDays.length} days)` : 'Class'}
+                  {classWarning ? "Confirm & Save" : `Save ${selectedDays.length > 1 ? `Classes (${selectedDays.length} days)` : 'Class'}`}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ORPHAN CLEANUP CONFIRMATION MODAL (Requirement 6) */}
+      {courseToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-sm bg-[#15151E] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-white">Delete {courseToDelete.name}?</h3>
+              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                What should happen to study sessions, exams, and practice questions associated with this course?
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  deleteCourse(courseToDelete.id, 'unassign');
+                  setCourseToDelete(null);
+                }}
+                className="w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 text-left border border-white/5 transition-all text-xs"
+              >
+                <span className="font-bold text-white block">Keep unassigned (General Study)</span>
+                <span className="text-[11px] text-gray-400">Preserves your logged hours and question cards without broken references.</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  deleteCourse(courseToDelete.id, 'delete');
+                  setCourseToDelete(null);
+                }}
+                className="w-full p-3 rounded-xl bg-[#EF4444]/15 hover:bg-[#EF4444]/25 text-left border border-[#EF4444]/30 transition-all text-xs"
+              >
+                <span className="font-bold text-[#EF4444] block">Delete all associated items</span>
+                <span className="text-[11px] text-red-300/80">Removes linked study sessions, exam reminders, and practice questions.</span>
+              </button>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setCourseToDelete(null)}
+                className="w-full min-h-[40px] rounded-xl border border-white/10 hover:bg-white/5 text-gray-300 text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

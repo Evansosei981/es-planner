@@ -41,6 +41,7 @@ import { PracticeRepository } from '../practice/PracticeRepository';
 import { MathText } from './MathText';
 import { MathToolbar } from './MathToolbar';
 import { QuestionImagePreview } from './QuestionImagePreview';
+import { detectDuplicateQuestion, sanitizeTitle } from '../utils/dataSanitizer';
 
 interface DailyPracticeDashboardProps {
   onClose: () => void;
@@ -109,6 +110,7 @@ export const DailyPracticeDashboard: React.FC<DailyPracticeDashboardProps> = ({
   const [customExplanation, setCustomExplanation] = useState('');
   const [customImageBase64, setCustomImageBase64] = useState('');
   const [customAnswerImageBase64, setCustomAnswerImageBase64] = useState('');
+  const [customQuestionWarning, setCustomQuestionWarning] = useState<string | null>(null);
 
   // Resource Deletion Modal State
   const [resourceToDelete, setResourceToDelete] = useState<StudentRecordedResource | null>(null);
@@ -261,11 +263,20 @@ export const DailyPracticeDashboard: React.FC<DailyPracticeDashboardProps> = ({
   const handleSaveCustomQuestion = () => {
     if (!customQuestionText.trim()) return;
 
+    // Detect duplicate question
+    if (!customQuestionWarning) {
+      const dup = detectDuplicateQuestion(questionBank, customQuestionText);
+      if (dup) {
+        setCustomQuestionWarning(`Duplicate warning: A similar question already exists in your question bank. Click "Save Question" again to confirm.`);
+        return;
+      }
+    }
+
     addCustomQuestion({
       question: customQuestionText.trim(),
-      courseName: customCourse,
-      subject: customCourse,
-      category: customCategory.trim() || 'General',
+      courseName: sanitizeTitle(customCourse),
+      subject: sanitizeTitle(customCourse),
+      category: sanitizeTitle(customCategory.trim() || 'General'),
       difficulty: customDifficulty,
       type: customType,
       options: customType === 'multiple_choice' ? customOptions : (customType === 'true_false' ? ['True', 'False'] : []),
@@ -282,6 +293,7 @@ export const DailyPracticeDashboard: React.FC<DailyPracticeDashboardProps> = ({
     setCustomExplanation('');
     setCustomImageBase64('');
     setCustomAnswerImageBase64('');
+    setCustomQuestionWarning(null);
   };
 
   // Save Edit Question
@@ -439,137 +451,157 @@ export const DailyPracticeDashboard: React.FC<DailyPracticeDashboardProps> = ({
         {/* ========================================================================= */}
         {activeTab === 'challenge' && (
           <div className="space-y-5">
-            {/* HERO CARD ONLY */}
-            <div className="bg-gradient-to-br from-[#1C1833] via-[#141424] to-[#101018] border border-[#7C5CFC]/30 rounded-3xl p-5 sm:p-6 shadow-xl shadow-[#7C5CFC]/10 space-y-4">
-              {/* Mascot, "X questions today", and Streak Chip */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[#7C5CFC]/20 text-[#7C5CFC] flex items-center justify-center text-2xl shadow-md shrink-0">
-                    🦈
-                  </div>
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                      {isCompletedToday
-                        ? "Today's target complete!"
-                        : `${dailyQuestions.length} questions today`}
-                    </h2>
-                    <p className="text-xs text-gray-300 mt-0.5">
-                      {isCompletedToday
-                        ? "All done for today! Your streak is secured."
-                        : "Solve a quick round to keep your memory sharp."}
-                    </p>
-                  </div>
+            {/* When questionBank is empty: Clean Empty State (Requirement 3) */}
+            {questionBank.length === 0 ? (
+              <div className="bg-gradient-to-br from-[#1C1833] via-[#141424] to-[#101018] border border-[#7C5CFC]/30 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-xl shadow-[#7C5CFC]/10">
+                <div className="w-16 h-16 rounded-2xl bg-[#7C5CFC]/20 text-[#7C5CFC] flex items-center justify-center text-3xl mx-auto shadow-md">
+                  🦈
                 </div>
-
-                {/* Streak Chip (Orange = streak) */}
-                <div
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold text-[#FF7A00] bg-[#FF7A00]/15 border border-[#FF7A00]/30 shrink-0"
-                  title={`${practiceStreak.currentStreak} day streak`}
-                >
-                  <Flame className="w-4 h-4 fill-[#FF7A00]" />
-                  <span>{practiceStreak.currentStreak} days</span>
-                </div>
-              </div>
-
-              {/* ONE Progress Bar */}
-              <div className="space-y-2 pt-1">
-                <div className="flex justify-between items-center text-xs font-semibold">
-                  <span className="text-gray-400">
-                    {isCompletedToday ? "Target complete" : "Today's progress"}
-                  </span>
-                  <span className={isCompletedToday ? "text-[#00D4A1] font-bold" : "text-white font-bold"}>
-                    {isCompletedToday ? targetCount : (todayPracticeResult?.score || 0)} of {targetCount} done
-                  </span>
-                </div>
-                <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-700 ease-out ${
-                      isCompletedToday
-                        ? 'bg-[#00D4A1]'
-                        : 'bg-gradient-to-r from-[#7C5CFC] to-[#00D4A1]'
-                    }`}
-                    style={{
-                      width: `${isCompletedToday ? 100 : Math.min(100, Math.round(((todayPracticeResult?.score || 0) / targetCount) * 100))}%`
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Accuracy as small secondary line & at most one line: "Focus on: Normalization" */}
-              <div className="flex flex-wrap items-center justify-between text-xs text-gray-400 pt-0.5">
-                <span>Accuracy: {practiceOverallStats.accuracyPercentage}%</span>
-                {practiceOverallStats.needsPracticeTopics.length > 0 && (
-                  <span className="text-gray-300">
-                    Focus on: <strong className="text-white font-semibold">{practiceOverallStats.needsPracticeTopics[0]}</strong>
-                  </span>
-                )}
-              </div>
-
-              {/* Start Button: Purple = actions */}
-              {questionBank.length === 0 ? (
-                <div className="pt-2 text-center space-y-3">
-                  <p className="text-xs text-gray-400">
-                    No questions in your bank yet. Add learning material or load sample questions.
+                <div className="space-y-1.5 max-w-sm mx-auto">
+                  <h2 className="text-xl font-black text-white tracking-tight">
+                    Your Daily Practice isn't ready yet.
+                  </h2>
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    Your Daily Practice isn't ready yet. Add questions to build your bank.
                   </p>
-                  <div className="flex flex-wrap gap-2.5">
-                    <button
-                      onClick={() => setActiveTab('resources')}
-                      className="flex-1 min-h-[48px] px-4 rounded-2xl bg-[#7C5CFC] hover:bg-[#6c4be8] active:scale-[0.98] text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
-                    >
-                      <Upload className="w-4 h-4" />
-                      <span>Upload Material</span>
-                    </button>
-                    <button
-                      onClick={loadStarterQuestionPack}
-                      className="min-h-[48px] px-4 rounded-2xl bg-white/10 hover:bg-white/15 active:scale-[0.98] text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      <span>Sample Pack</span>
-                    </button>
-                  </div>
                 </div>
-              ) : dailyQuestions.length === 0 && !isCompletedToday ? (
-                <div className="pt-2 text-center space-y-3">
-                  <p className="text-xs text-gray-400">
-                    No available questions for "{practiceSettings.preferredCourse}".
-                  </p>
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                   <button
-                    onClick={() => updatePracticeSettings({ preferredCourse: 'all' })}
-                    className="w-full min-h-[48px] px-4 rounded-2xl bg-[#7C5CFC] hover:bg-[#6c4be8] active:scale-[0.98] text-white font-bold text-xs transition-all"
+                    onClick={() => {
+                      setCustomQuestionWarning(null);
+                      setShowAddCustomDialog(true);
+                    }}
+                    className="w-full sm:w-auto min-h-[48px] px-6 rounded-2xl bg-[#7C5CFC] hover:bg-[#6c4be8] active:scale-[0.98] text-white font-extrabold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#7C5CFC]/25 cursor-pointer"
                   >
-                    Switch to All Courses ({questionBank.length} questions)
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                    <span>Add Questions</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('resources')}
+                    className="w-full sm:w-auto min-h-[48px] px-5 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-[0.98] text-gray-300 hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 border border-white/10 cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Upload Material</span>
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={() => onStartChallenge()}
-                  className="w-full min-h-[48px] py-3.5 px-6 rounded-2xl bg-[#7C5CFC] hover:bg-[#6c4be8] active:scale-[0.98] text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl shadow-[#7C5CFC]/25 transition-all"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>
-                    {isCompletedToday ? "Practice Again" : "Start Today's Practice"}
-                  </span>
-                  <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-                </button>
-              )}
-
-              {/* Course Selector: small dropdown below Start, defaulting to "All courses" */}
-              <div className="flex items-center justify-between pt-3 text-xs border-t border-white/5">
-                <span className="text-gray-400 font-medium">Practice course</span>
-                <select
-                  value={practiceSettings.preferredCourse || 'all'}
-                  onChange={e => updatePracticeSettings({ preferredCourse: e.target.value })}
-                  className="bg-[#1D1D2B] text-white border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#7C5CFC] transition-colors cursor-pointer"
-                >
-                  <option value="all">All courses</option>
-                  {courses.map(c => (
-                    <option key={c.id} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
               </div>
-            </div>
+            ) : (
+              /* HERO CARD WITH QUESTIONS */
+              <div className="bg-gradient-to-br from-[#1C1833] via-[#141424] to-[#101018] border border-[#7C5CFC]/30 rounded-3xl p-5 sm:p-6 shadow-xl shadow-[#7C5CFC]/10 space-y-4">
+                {/* Mascot, "X questions today", and Streak Chip */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-[#7C5CFC]/20 text-[#7C5CFC] flex items-center justify-center text-2xl shadow-md shrink-0">
+                      🦈
+                    </div>
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                        {isCompletedToday
+                          ? "Today's target complete!"
+                          : `${dailyQuestions.length} questions today`}
+                      </h2>
+                      <p className="text-xs text-gray-300 mt-0.5">
+                        {isCompletedToday
+                          ? "All done for today! Your streak is secured."
+                          : "Solve a quick round to keep your memory sharp."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Streak Chip: hidden until first completed day */}
+                  {practiceStreak.currentStreak > 0 && (
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold text-[#FF7A00] bg-[#FF7A00]/15 border border-[#FF7A00]/30 shrink-0"
+                      title={`${practiceStreak.currentStreak} day streak`}
+                    >
+                      <Flame className="w-4 h-4 fill-[#FF7A00]" />
+                      <span>{practiceStreak.currentStreak} days</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* ONE Progress Bar */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex justify-between items-center text-xs font-semibold">
+                    <span className="text-gray-400">
+                      {isCompletedToday ? "Target complete" : "Today's progress"}
+                    </span>
+                    <span className={isCompletedToday ? "text-[#00D4A1] font-bold" : "text-white font-bold"}>
+                      {isCompletedToday ? targetCount : (todayPracticeResult?.score || 0)} of {targetCount} done
+                    </span>
+                  </div>
+                  <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-700 ease-out ${
+                        isCompletedToday
+                          ? 'bg-[#00D4A1]'
+                          : 'bg-gradient-to-r from-[#7C5CFC] to-[#00D4A1]'
+                      }`}
+                      style={{
+                        width: `${isCompletedToday ? 100 : Math.min(100, Math.round(((todayPracticeResult?.score || 0) / targetCount) * 100))}%`
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Accuracy as small secondary line (shown only if attempts exist) */}
+                <div className="flex flex-wrap items-center justify-between text-xs text-gray-400 pt-0.5">
+                  <span>
+                    {practiceOverallStats.totalSolved > 0
+                      ? `Accuracy: ${practiceOverallStats.accuracyPercentage}%`
+                      : "No questions attempted yet"}
+                  </span>
+                  {practiceOverallStats.needsPracticeTopics.length > 0 && (
+                    <span className="text-gray-300">
+                      Focus on: <strong className="text-white font-semibold">{practiceOverallStats.needsPracticeTopics[0]}</strong>
+                    </span>
+                  )}
+                </div>
+
+                {/* Start Button: Purple = actions */}
+                {dailyQuestions.length === 0 && !isCompletedToday ? (
+                  <div className="pt-2 text-center space-y-3">
+                    <p className="text-xs text-gray-400">
+                      No available questions for "{practiceSettings.preferredCourse}".
+                    </p>
+                    <button
+                      onClick={() => updatePracticeSettings({ preferredCourse: 'all' })}
+                      className="w-full min-h-[48px] px-4 rounded-2xl bg-[#7C5CFC] hover:bg-[#6c4be8] active:scale-[0.98] text-white font-bold text-xs transition-all"
+                    >
+                      Switch to All Courses ({questionBank.length} questions)
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onStartChallenge()}
+                    className="w-full min-h-[48px] py-3.5 px-6 rounded-2xl bg-[#7C5CFC] hover:bg-[#6c4be8] active:scale-[0.98] text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl shadow-[#7C5CFC]/25 transition-all"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>
+                      {isCompletedToday ? "Practice Again" : "Start Today's Practice"}
+                    </span>
+                    <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+                )}
+
+                {/* Course Selector: small dropdown below Start, defaulting to "All courses" */}
+                <div className="flex items-center justify-between pt-3 text-xs border-t border-white/5">
+                  <span className="text-gray-400 font-medium">Practice course</span>
+                  <select
+                    value={practiceSettings.preferredCourse || 'all'}
+                    onChange={e => updatePracticeSettings({ preferredCourse: e.target.value })}
+                    className="bg-[#1D1D2B] text-white border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#7C5CFC] transition-colors cursor-pointer"
+                  >
+                    <option value="all">All courses</option>
+                    {courses.map(c => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* SHORT WEEKLY STRIP (7 dots for days practiced) */}
             <div className="bg-[#14141E] border border-white/5 rounded-2xl p-4">
@@ -1190,44 +1222,72 @@ export const DailyPracticeDashboard: React.FC<DailyPracticeDashboardProps> = ({
         {/* ========================================================================= */}
         {activeTab === 'progress' && (
           <div className="space-y-6">
-            {/* Top Stats Overview */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 text-center">
-                <span className="text-xs text-gray-400 font-semibold block mb-1">
-                  Questions Solved
-                </span>
-                <span className="text-2xl font-black text-white">
-                  {practiceOverallStats.totalSolved}
-                </span>
+            {practiceOverallStats.totalSolved === 0 ? (
+              <div className="bg-[#15151E] border border-white/5 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-4 my-2">
+                <div className="w-14 h-14 rounded-2xl bg-[#1D1D29] text-[#7C5CFC] flex items-center justify-center text-2xl">
+                  📊
+                </div>
+                <div className="space-y-1 max-w-sm">
+                  <h3 className="text-base font-bold text-white">No Practice Analytics Yet</h3>
+                  <p className="text-xs text-gray-400">
+                    Complete your daily practice sessions to track your accuracy percentage, streaks, and topic mastery.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (questionBank.length === 0) {
+                      setCustomQuestionWarning(null);
+                      setShowAddCustomDialog(true);
+                    } else {
+                      setActiveTab('challenge');
+                    }
+                  }}
+                  className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#7C5CFC] hover:bg-[#6c4be8] active:scale-95 text-white font-bold text-xs transition-all flex items-center gap-2 shadow-lg shadow-[#7C5CFC]/25"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{questionBank.length === 0 ? "Add Questions First" : "Start Daily Practice"}</span>
+                </button>
               </div>
+            ) : (
+              <>
+                {/* Top Stats Overview */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 text-center">
+                    <span className="text-xs text-gray-400 font-semibold block mb-1">
+                      Questions Solved
+                    </span>
+                    <span className="text-2xl font-black text-white">
+                      {practiceOverallStats.totalSolved}
+                    </span>
+                  </div>
 
-              <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 text-center">
-                <span className="text-xs text-gray-400 font-semibold block mb-1">
-                  Accuracy
-                </span>
-                <span className="text-2xl font-black text-[#00D4A1]">
-                  {practiceOverallStats.accuracyPercentage}%
-                </span>
-              </div>
+                  <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 text-center">
+                    <span className="text-xs text-gray-400 font-semibold block mb-1">
+                      Accuracy
+                    </span>
+                    <span className="text-2xl font-black text-[#00D4A1]">
+                      {practiceOverallStats.accuracyPercentage}%
+                    </span>
+                  </div>
 
-              <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 text-center">
-                <span className="text-xs text-gray-400 font-semibold block mb-1">
-                  Current Streak
-                </span>
-                <span className="text-2xl font-black text-[#FF7A00]">
-                  🔥 {practiceOverallStats.currentStreak}
-                </span>
-              </div>
+                  <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 text-center">
+                    <span className="text-xs text-gray-400 font-semibold block mb-1">
+                      Current Streak
+                    </span>
+                    <span className="text-2xl font-black text-[#FF7A00]">
+                      🔥 {practiceOverallStats.currentStreak}
+                    </span>
+                  </div>
 
-              <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 text-center">
-                <span className="text-xs text-gray-400 font-semibold block mb-1">
-                  Longest Streak
-                </span>
-                <span className="text-2xl font-black text-[#7C5CFC]">
-                  🏆 {practiceOverallStats.longestStreak}
-                </span>
-              </div>
-            </div>
+                  <div className="bg-[#15151E] border border-white/5 rounded-2xl p-4 text-center">
+                    <span className="text-xs text-gray-400 font-semibold block mb-1">
+                      Longest Streak
+                    </span>
+                    <span className="text-2xl font-black text-[#7C5CFC]">
+                      🏆 {practiceOverallStats.longestStreak}
+                    </span>
+                  </div>
+                </div>
 
             {/* Topic Breakdown */}
             <div className="bg-[#15151E] border border-white/5 rounded-3xl p-6 space-y-4">
@@ -1338,6 +1398,8 @@ export const DailyPracticeDashboard: React.FC<DailyPracticeDashboardProps> = ({
                 </span>
               </div>
             </div>
+            </>
+            )}
           </div>
         )}
 
@@ -1759,11 +1821,20 @@ export const DailyPracticeDashboard: React.FC<DailyPracticeDashboardProps> = ({
                   className="w-full bg-[#1A1A26] border border-white/10 rounded-xl p-3 text-white"
                 />
               </div>
+
+              {customQuestionWarning && (
+                <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs text-amber-300">
+                  {customQuestionWarning}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3">
               <button
-                onClick={() => setShowAddCustomDialog(false)}
+                onClick={() => {
+                  setCustomQuestionWarning(null);
+                  setShowAddCustomDialog(false);
+                }}
                 className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300"
               >
                 Cancel
@@ -1772,7 +1843,7 @@ export const DailyPracticeDashboard: React.FC<DailyPracticeDashboardProps> = ({
                 onClick={handleSaveCustomQuestion}
                 className="px-4 py-2 rounded-xl bg-[#7C5CFC] hover:bg-[#6846EB] text-white text-xs font-bold shadow"
               >
-                Save Question
+                {customQuestionWarning ? "Confirm & Save" : "Save Question"}
               </button>
             </div>
           </div>

@@ -54,15 +54,13 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({ onSessionClick }) => {
 
   const handleCreateSession = (e: React.FormEvent) => {
     e.preventDefault();
-    const course = courses.find(c => c.id === selectedCourseId) || courses[0];
-    if (!course) return;
-
+    const course = courses.find(c => c.id === selectedCourseId);
     const [sH, sM] = startTime.split(':').map(Number);
 
     addStudySession({
-      courseId: course.id,
-      courseName: course.name,
-      colorIndex: course.colorIndex,
+      courseId: course?.id || 0,
+      courseName: course?.name || "General Study",
+      colorIndex: course?.colorIndex || 0,
       dayOfWeek,
       startHour: isNaN(sH) ? 16 : sH,
       startMinute: isNaN(sM) ? 0 : sM,
@@ -70,6 +68,21 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({ onSessionClick }) => {
     });
 
     setShowAddModal(false);
+  };
+
+  const handleStartQuickTimer = (mins: number = 25) => {
+    onSessionClick({
+      id: Date.now(),
+      courseId: 0,
+      courseName: "Focus Session",
+      colorIndex: 0,
+      dayOfWeek: currentDow,
+      startHour: new Date().getHours(),
+      startMinute: new Date().getMinutes(),
+      durationMinutes: mins,
+      completed: false,
+      dateMillis: Date.now()
+    });
   };
 
   const handleDeleteWithUndo = (session: StudySession) => {
@@ -146,21 +159,32 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({ onSessionClick }) => {
 
       {/* Empty State */}
       {studySessions.length === 0 ? (
-        <div className="bg-[#15151E] border border-white/5 rounded-3xl p-10 text-center flex flex-col items-center justify-center my-6">
-          <div className="w-14 h-14 rounded-2xl bg-[#1D1D29] text-[#7C5CFC] flex items-center justify-center mb-3">
+        <div className="bg-[#15151E] border border-white/5 rounded-3xl p-8 sm:p-10 text-center flex flex-col items-center justify-center my-6 space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-[#1D1D29] text-[#7C5CFC] flex items-center justify-center">
             <BookOpen className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-bold text-white mb-1">No study sessions planned</h3>
-          <p className="text-xs text-gray-400 max-w-xs mb-5">
-            Schedule dedicated revision sessions for your courses and track your focus hours.
-          </p>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="min-h-[44px] px-4 py-2 bg-[#7C5CFC] hover:bg-[#6c4be8] text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-[#7C5CFC]/20 text-xs transition-all active:scale-95"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Plan Study Session</span>
-          </button>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-white">No study sessions planned</h3>
+            <p className="text-xs text-gray-400 max-w-xs">
+              Focus timer works with or without enrolled courses. Start a timer now or plan recurring sessions.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <button
+              onClick={() => handleStartQuickTimer(25)}
+              className="min-h-[44px] px-5 py-2.5 bg-[#7C5CFC] hover:bg-[#6c4be8] text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-[#7C5CFC]/25 text-xs transition-all active:scale-95 cursor-pointer"
+            >
+              <Play className="w-4 h-4 fill-white" />
+              <span>Start Focus Timer</span>
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="min-h-[44px] px-4 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white font-bold rounded-xl border border-white/10 flex items-center gap-2 text-xs transition-all active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Plan Study Session</span>
+            </button>
+          </div>
         </div>
       ) : (
         /* Sessions Grouped by Day of Week with "Today" Marker */
@@ -333,25 +357,20 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({ onSessionClick }) => {
             <form onSubmit={handleCreateSession} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-gray-400 block mb-1.5">
-                  Select Course
+                  Select Course <span className="text-gray-500 font-normal">(optional)</span>
                 </label>
-                {courses.length > 0 ? (
-                  <select
-                    value={selectedCourseId}
-                    onChange={e => setSelectedCourseId(Number(e.target.value))}
-                    className="w-full bg-[#1D1D29] border border-white/10 focus:border-[#7C5CFC] rounded-xl px-3.5 py-2.5 text-white outline-none text-sm"
-                  >
-                    {courses.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-xs text-amber-400">
-                    No courses available. Please add courses first in Classes.
-                  </p>
-                )}
+                <select
+                  value={selectedCourseId}
+                  onChange={e => setSelectedCourseId(Number(e.target.value))}
+                  className="w-full bg-[#1D1D29] border border-white/10 focus:border-[#7C5CFC] rounded-xl px-3.5 py-2.5 text-white outline-none text-sm"
+                >
+                  <option value={0}>General Study / Focus (No course)</option>
+                  {courses.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -416,8 +435,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({ onSessionClick }) => {
                 </button>
                 <button
                   type="submit"
-                  disabled={courses.length === 0}
-                  className="flex-1 min-h-[44px] text-xs font-bold text-white bg-[#7C5CFC] hover:bg-[#6c4be8] disabled:opacity-50 rounded-xl transition-colors shadow-lg shadow-[#7C5CFC]/20"
+                  className="flex-1 min-h-[44px] text-xs font-bold text-white bg-[#7C5CFC] hover:bg-[#6c4be8] rounded-xl transition-colors shadow-lg shadow-[#7C5CFC]/20 cursor-pointer"
                 >
                   Save Session
                 </button>

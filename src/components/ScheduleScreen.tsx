@@ -15,6 +15,7 @@ import { useApp } from '../context/AppContext';
 import { Course, Exam } from '../types';
 import { getCourseColor } from '../theme/colors';
 import { DayPlannerScreen } from './DayPlannerScreen';
+import { validateExamDate, detectDuplicateExam } from '../utils/dataSanitizer';
 
 interface ScheduleScreenProps {
   onClassNoteClick: (course: Course) => void;
@@ -37,6 +38,7 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
     courses,
     studySessions,
     upcomingExams,
+    exams,
     addExam,
     deleteExam,
     currentTime,
@@ -68,6 +70,7 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
     return d.toISOString().slice(0, 16);
   });
   const [examColorIdx, setExamColorIdx] = useState(0);
+  const [examWarning, setExamWarning] = useState<string | null>(null);
 
   const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -110,6 +113,22 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
     e.preventDefault();
     if (!examCourseName.trim() || !examTitle.trim()) return;
     const timestampMillis = new Date(examDate).getTime() || Date.now() + 86400000;
+
+    // Check validation and duplicate if warning not already acknowledged
+    if (!examWarning) {
+      const dup = detectDuplicateExam(exams, examCourseName, examTitle, timestampMillis);
+      if (dup) {
+        setExamWarning(`Duplicate warning: An exam for "${dup.examTitle}" (${dup.courseName}) already exists on that date. Click "Save Exam" again to confirm.`);
+        return;
+      }
+
+      const dateValidation = validateExamDate(timestampMillis);
+      if (dateValidation.isPast) {
+        setExamWarning("Warning: This exam date is in the past. Click \"Save Exam\" again to confirm.");
+        return;
+      }
+    }
+
     addExam({
       courseName: examCourseName.trim(),
       examTitle: examTitle.trim(),
@@ -117,6 +136,7 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
       colorIndex: examColorIdx
     });
     setExamTitle('');
+    setExamWarning(null);
     setShowAddExamModal(false);
   };
 
@@ -297,9 +317,11 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
                 <CalendarDays className="w-7 h-7 stroke-[1.75]" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-bold text-white">Nothing planned</h3>
+                <h3 className="text-base font-bold text-white">No classes yet.</h3>
                 <p className="text-xs text-gray-400 max-w-xs">
-                  Add a class or study block to build your timetable for {dayNames[selectedDay - 1]}.
+                  {courses.length === 0
+                    ? "Add your lectures or lab blocks to build your timetable."
+                    : `Add a class or study block to build your timetable for ${dayNames[selectedDay - 1]}.`}
                 </p>
               </div>
               <button
@@ -413,13 +435,16 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
                 <Calendar className="w-7 h-7 stroke-[1.75]" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-bold text-white">No upcoming exams</h3>
+                <h3 className="text-base font-bold text-white">No exams yet.</h3>
                 <p className="text-xs text-gray-400 max-w-xs">
                   Keep track of midterms, quizzes, and finals by scheduling exam dates.
                 </p>
               </div>
               <button
-                onClick={() => setShowAddExamModal(true)}
+                onClick={() => {
+                  setExamWarning(null);
+                  setShowAddExamModal(true);
+                }}
                 className="min-h-[40px] px-4 py-2 bg-[#7C5CFC] hover:bg-[#6c4be8] text-white font-bold text-xs rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-md shadow-[#7C5CFC]/20"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -550,10 +575,19 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
                 />
               </div>
 
+              {examWarning && (
+                <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs text-amber-300">
+                  {examWarning}
+                </div>
+              )}
+
               <div className="flex gap-3 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowAddExamModal(false)}
+                  onClick={() => {
+                    setExamWarning(null);
+                    setShowAddExamModal(false);
+                  }}
                   className="flex-1 min-h-[44px] text-xs font-semibold text-gray-400 hover:text-white bg-white/5 rounded-xl transition-colors"
                 >
                   Cancel
@@ -562,7 +596,7 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
                   type="submit"
                   className="flex-1 min-h-[44px] text-xs font-bold text-white bg-[#7C5CFC] hover:bg-[#6c4be8] rounded-xl transition-colors shadow-lg shadow-[#7C5CFC]/20"
                 >
-                  Save Exam
+                  {examWarning ? "Confirm & Save" : "Save Exam"}
                 </button>
               </div>
             </form>

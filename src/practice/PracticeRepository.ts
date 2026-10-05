@@ -25,12 +25,12 @@ export const PracticeRepository = {
   // --- Questions ---
   loadQuestions(): PracticeQuestion[] {
     const saved = localStorage.getItem(STORAGE_KEY_QUESTIONS);
-    if (!saved) return DEFAULT_QUESTION_BANK;
+    if (!saved) return [];
     try {
       const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_QUESTION_BANK;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return DEFAULT_QUESTION_BANK;
+      return [];
     }
   },
 
@@ -144,7 +144,7 @@ export const PracticeRepository = {
   loadStreak(): PracticeStreak {
     const saved = localStorage.getItem(STORAGE_KEY_STREAK);
     if (!saved) {
-      return { currentStreak: 3, longestStreak: 7, lastCompletedDay: DayKey.getYesterdayKey() };
+      return { currentStreak: 0, longestStreak: 0, lastCompletedDay: null };
     }
     try {
       return JSON.parse(saved);
@@ -335,8 +335,8 @@ export const PracticeRepository = {
       completedToday: todayResult ? todayResult.attempts.length : 0,
       dailyTarget,
       topicBreakdown,
-      needsPracticeTopics: needsPracticeTopics.length > 0 ? needsPracticeTopics : ['General Questions'],
-      strongTopics: strongTopics.length > 0 ? strongTopics : ['Quick Recall'],
+      needsPracticeTopics,
+      strongTopics,
       difficultyBreakdown: difficultyMap
     };
   },
